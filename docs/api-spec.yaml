@@ -88,7 +88,101 @@ paths:
         '401':
           description: Incorrect email or password
 
+  /auth/logout:
+    post:
+      summary: Log out
+      description: |
+        Invalidates the current JWT (server-side blacklist). After this,
+        the same token can no longer be used to access protected endpoints.
+      tags:
+        - Auth
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Logged out successfully
+        '401':
+          description: Missing or invalid token
+
+  /users/me:
+    get:
+      summary: Get my profile
+      description: Returns the authenticated user's profile and current balance.
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: Missing or invalid token
+
+  /transactions:
+    get:
+      summary: List my transactions
+      description: Returns the authenticated user's transaction history, newest first.
+      tags:
+        - Transactions
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transaction'
+        '401':
+          description: Missing or invalid token
+
+    post:
+      summary: Send money to another user
+      description: |
+        Transfers the specified amount from the authenticated user's
+        balance to the recipient's balance. Operation is atomic.
+      tags:
+        - Transactions
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferRequest'
+      responses:
+        '201':
+          description: Transfer completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          description: Malformed request
+        '401':
+          description: Missing or invalid token
+        '404':
+          description: Recipient email not found
+        '422':
+          description: Insufficient balance, or attempting to transfer to self
+
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT obtained from /auth/login or /auth/verify-otp. Send as:
+        Authorization: Bearer <token>
+
   schemas:
     RegisterRequest:
       type: object
@@ -173,3 +267,40 @@ components:
           type: string
           description: Decimal128 string representation
           example: '1000.00'
+
+    TransferRequest:
+      type: object
+      required:
+        - recipientEmail
+        - amount
+      properties:
+        recipientEmail:
+          type: string
+          format: email
+          example: jane@example.com
+        amount:
+          type: string
+          description: Decimal string, must be positive
+          example: '50.00'
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 64a1b2c3d4e5f6a7b8c9d0e2
+        senderEmail:
+          type: string
+          format: email
+          example: saar@example.com
+        recipientEmail:
+          type: string
+          format: email
+          example: jane@example.com
+        amount:
+          type: string
+          example: '50.00'
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-01-15T10:30:00Z'
