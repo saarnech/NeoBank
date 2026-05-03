@@ -1,0 +1,175 @@
+openapi: 3.0.3
+info:
+  title: Banks API
+  description: REST API for the Banks web banking application
+  version: 0.1.0
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local development server
+paths:
+  /auth/register:
+    post:
+      summary: Register a new user
+      description: |
+        Creates a new user account in inactive status and triggers an OTP
+        to be sent to the user's email or phone for verification.
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User created, OTP sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          description: Invalid email or phone format
+        '409':
+          description: Email already registered
+
+  /auth/verify-otp:
+    post:
+      summary: Verify OTP and activate account
+      description: |
+        Submits the 6-digit code sent during registration. On success, marks
+        the user as active, assigns a starting balance, and returns a JWT.
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyOtpRequest'
+      responses:
+        '200':
+          description: OTP verified, user activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Malformed request
+        '401':
+          description: Incorrect or expired OTP
+        '404':
+          description: No pending registration found for this email
+
+  /auth/login:
+    post:
+      summary: User login
+      description: |
+        Verifies the user's email and password. On success, returns a
+        JWT to be used as a Bearer token in the Authorization header
+        for subsequent requests.
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Malformed request
+        '401':
+          description: Incorrect email or password
+
+components:
+  schemas:
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - phone
+      properties:
+        email:
+          type: string
+          format: email
+          example: saar@example.com
+        password:
+          type: string
+          minLength: 8
+          example: SuperSecret123
+        phone:
+          type: string
+          pattern: '^\+?[0-9]{9,15}$'
+          example: '+972501234567'
+
+    RegisterResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: User registered. OTP sent.
+        userId:
+          type: string
+          example: 64a1b2c3d4e5f6a7b8c9d0e1
+
+    VerifyOtpRequest:
+      type: object
+      required:
+        - email
+        - otp
+      properties:
+        email:
+          type: string
+          format: email
+          example: saar@example.com
+        otp:
+          type: string
+          pattern: '^[0-9]{6}$'
+          example: '123456'
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: saar@example.com
+        password:
+          type: string
+          example: SuperSecret123
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT to be sent in the Authorization header on subsequent requests
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        user:
+          $ref: '#/components/schemas/UserProfile'
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 64a1b2c3d4e5f6a7b8c9d0e1
+        email:
+          type: string
+          format: email
+          example: saar@example.com
+        balance:
+          type: string
+          description: Decimal128 string representation
+          example: '1000.00'
