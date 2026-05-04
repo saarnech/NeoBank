@@ -125,20 +125,38 @@ paths:
   /transactions:
     get:
       summary: List my transactions
-      description: Returns the authenticated user's transaction history, newest first.
+      description: |
+        Returns the authenticated user's transaction history, newest first,
+        in pages of configurable size.
       tags:
         - Transactions
       security:
-        - BearerAuth: []
+        - BearerAuth: [ ]
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number, starting at 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Page size (max 100)
       responses:
         '200':
-          description: List of transactions
+          description: Paginated list of transactions
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Transaction'
+                $ref: '#/components/schemas/PaginatedTransactions'
+        '400':
+          description: Invalid pagination parameters
         '401':
           description: Missing or invalid token
 
@@ -304,3 +322,29 @@ components:
           type: string
           format: date-time
           example: '2026-01-15T10:30:00Z'
+
+    PaginatedTransactions:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+        page:
+          type: integer
+          example: 2
+        limit:
+          type: integer
+          example: 20
+        totalItems:
+          type: integer
+          example: 87
+        totalPages:
+          type: integer
+          example: 5
+        hasNext:
+          type: boolean
+          example: true
+        hasPrev:
+          type: boolean
+          example: true
