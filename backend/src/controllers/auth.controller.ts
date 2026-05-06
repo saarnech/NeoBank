@@ -2,12 +2,15 @@ import type { Request, Response } from 'express';
 import {
     registerUser,
     loginUser,
+    verifyOtp,
     EmailAlreadyExistsError,
     InvalidInputError,
     InvalidCredentialsError,
     AccountInactiveError,
+    InvalidOtpError,
+    NoPendingRegistrationError,
 } from '../services/auth.service';
-import type { RegisterRequest, LoginRequest } from '../types/auth';
+import type { RegisterRequest, LoginRequest, VerifyOtpRequest } from '../types/auth';
 
 export function register(req: Request, res: Response): void {
     try {
@@ -47,6 +50,29 @@ export function login(req: Request, res: Response): void {
             return;
         }
         console.error('Unexpected error in login:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+}
+
+export function verifyOtpController(req: Request, res: Response): void {
+    try {
+        const input = req.body as VerifyOtpRequest;
+        const result = verifyOtp(input);
+        res.status(200).json(result);
+    } catch (err) {
+        if (err instanceof InvalidInputError) {
+            res.status(400).json({ error: err.message });
+            return;
+        }
+        if (err instanceof InvalidOtpError) {
+            res.status(401).json({ error: err.message });
+            return;
+        }
+        if (err instanceof NoPendingRegistrationError) {
+            res.status(404).json({ error: err.message });
+            return;
+        }
+        console.error('Unexpected error in verifyOtp:', err);
         res.status(500).json({ error: 'Internal server error' });
     }
 }

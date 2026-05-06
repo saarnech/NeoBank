@@ -6,8 +6,10 @@ import type {
     AuthResponse,
     UserProfile,
     StoredUser,
+    VerifyOtpRequest,
 } from '../types/auth';
 import { findByEmail, save } from '../utils/userStore';
+import { setOtp, getOtp, deleteOtp } from '../utils/otpStore';
 
 // --- Custom error classes ---
 
@@ -39,6 +41,20 @@ export class AccountInactiveError extends Error {
     }
 }
 
+export class InvalidOtpError extends Error {
+    constructor() {
+        super('Incorrect or expired OTP');
+        this.name = 'InvalidOtpError';
+    }
+}
+
+export class NoPendingRegistrationError extends Error {
+    constructor() {
+        super('No pending registration found for this email');
+        this.name = 'NoPendingRegistrationError';
+    }
+}
+
 // --- Helpers ---
 
 function toProfile(user: StoredUser): UserProfile {
@@ -47,6 +63,12 @@ function toProfile(user: StoredUser): UserProfile {
         email: user.email,
         balance: user.balance,
     };
+}
+
+function generateOtp(): string {
+    // Random 6-digit string, zero-padded
+    const n = Math.floor(Math.random() * 1_000_000);
+    return n.toString().padStart(6, '0');
 }
 
 // --- Public service functions ---
@@ -78,6 +100,10 @@ export function registerUser(input: RegisterRequest): RegisterResponse {
 
     save(newUser);
 
+    const otpCode = generateOtp();
+    setOtp(newUser.email, otpCode);
+    console.log(`[OTP] Generated code for ${newUser.email}: ${otpCode}`);
+
     return {
         message: 'User registered. OTP sent.',
         userId: newUser.id,
@@ -104,6 +130,44 @@ export function loginUser(input: LoginRequest): AuthResponse {
     if (user.status !== 'active') {
         throw new AccountInactiveError();
     }
+
+    return {
+        token: 'FAKE_JWT_FOR_PHASE_1',
+        user: toProfile(user),
+    };
+}
+
+export function verifyOtp(input: VerifyOtpRequest): AuthResponse {
+    const { email, otp } = input;
+
+    if (!email || !otp) {
+        throw new InvalidInputError('email and otp are required');
+    }
+
+    const user = findByEmail(email);
+    if (!user) {
+        throw new NoPendingRegistrationError();
+    }
+
+    const pending = getOtp(email);
+    if (!pending) {
+        throw new NoPendingRegistrationError();
+    }
+
+    if (pending.expiresAt < new Date()) {
+        deleteOtp(email);
+        throw new InvalidOtpError();
+    }
+
+    if (pending.code !== otp) {
+        throw new InvalidOtpError();
+    }
+
+    // Activate the user and clean up
+    user.status = 'active';
+    user.balance = '1000.00'; // starting balance
+    save(user);
+    deleteOtp(email);
 
     return {
         token: 'FAKE_JWT_FOR_PHASE_1',

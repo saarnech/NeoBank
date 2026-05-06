@@ -34,3 +34,8 @@ export type StoredUser = {
     balance: string;
     createdAt: Date;
 };
+
+export type VerifyOtpRequest = {
+    email: string;
+    otp: string;
+};
