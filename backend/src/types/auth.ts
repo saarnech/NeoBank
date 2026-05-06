@@ -9,6 +9,22 @@ export type RegisterResponse = {
     userId: string;
 };
 
+export type LoginRequest = {
+    email: string;
+    password: string;
+};
+
+export type UserProfile = {
+    id: string;
+    email: string;
+    balance: string;
+};
+
+export type AuthResponse = {
+    token: string;
+    user: UserProfile;
+};
+
 export type StoredUser = {
     id: string;
     email: string;
