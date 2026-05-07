@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import bcrypt from 'bcrypt';
 import type {
     RegisterRequest,
     RegisterResponse,
@@ -10,6 +11,8 @@ import type {
 } from '../types/auth';
 import { findByEmail, save } from '../utils/userStore';
 import { setOtp, getOtp, deleteOtp } from '../utils/otpStore';
+
+const BCRYPT_ROUNDS = 12;
 
 // --- Custom error classes ---
 
@@ -73,7 +76,7 @@ function generateOtp(): string {
 
 // --- Public service functions ---
 
-export function registerUser(input: RegisterRequest): RegisterResponse {
+export async function registerUser(input: RegisterRequest): Promise<RegisterResponse> {
     const { email, password, phone } = input;
 
     if (!email || !password || !phone) {
@@ -91,7 +94,7 @@ export function registerUser(input: RegisterRequest): RegisterResponse {
     const newUser: StoredUser = {
         id: randomUUID(),
         email: email.toLowerCase(),
-        passwordHash: password, // TODO: hash with bcrypt in Phase 2
+        passwordHash: await bcrypt.hash(password, BCRYPT_ROUNDS),
         phone,
         status: 'inactive',
         balance: '0.00',
@@ -110,7 +113,7 @@ export function registerUser(input: RegisterRequest): RegisterResponse {
     };
 }
 
-export function loginUser(input: LoginRequest): AuthResponse {
+export async function loginUser(input: LoginRequest): Promise<AuthResponse> {
     const { email, password } = input;
 
     if (!email || !password) {
@@ -122,8 +125,8 @@ export function loginUser(input: LoginRequest): AuthResponse {
         throw new InvalidCredentialsError();
     }
 
-    if (user.passwordHash !== password) {
-        // TODO: bcrypt.compare in Phase 2
+    const passwordMatches = await bcrypt.compare(password, user.passwordHash);
+    if (!passwordMatches) {
         throw new InvalidCredentialsError();
     }
 

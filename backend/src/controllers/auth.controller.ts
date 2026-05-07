@@ -12,10 +12,10 @@ import {
 } from '../services/auth.service';
 import type { RegisterRequest, LoginRequest, VerifyOtpRequest } from '../types/auth';
 
-export function register(req: Request, res: Response): void {
+export async function register(req: Request, res: Response): Promise<void> {
     try {
         const input = req.body as RegisterRequest;
-        const result = registerUser(input);
+        const result = await registerUser(input);
         res.status(201).json(result);
     } catch (err) {
         if (err instanceof InvalidInputError) {
@@ -31,10 +31,10 @@ export function register(req: Request, res: Response): void {
     }
 }
 
-export function login(req: Request, res: Response): void {
+export async function login(req: Request, res: Response): Promise<void> {
     try {
         const input = req.body as LoginRequest;
-        const result = loginUser(input);
+        const result = await loginUser(input);
         res.status(200).json(result);
     } catch (err) {
         if (err instanceof InvalidInputError) {
