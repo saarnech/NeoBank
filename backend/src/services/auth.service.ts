@@ -11,6 +11,7 @@ import type {
 } from '../types/auth';
 import { findByEmail, save } from '../utils/userStore';
 import { setOtp, getOtp, deleteOtp } from '../utils/otpStore';
+import { signToken } from '../utils/jwt';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -135,7 +136,7 @@ export async function loginUser(input: LoginRequest): Promise<AuthResponse> {
     }
 
     return {
-        token: 'FAKE_JWT_FOR_PHASE_1',
+        token: signToken({ userId: user.id, email: user.email }),
         user: toProfile(user),
     };
 }
@@ -173,7 +174,7 @@ export function verifyOtp(input: VerifyOtpRequest): AuthResponse {
     deleteOtp(email);
 
     return {
-        token: 'FAKE_JWT_FOR_PHASE_1',
+        token: signToken({ userId: user.id, email: user.email }),
         user: toProfile(user),
     };
 }
