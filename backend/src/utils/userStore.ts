@@ -13,3 +13,10 @@ export function save(user: StoredUser): void {
 export function clear(): void {
     users.clear();
 }
+
+export function findById(id: string): StoredUser | undefined {
+    for (const user of users.values()) {
+        if (user.id === id) return user;
+    }
+    return undefined;
+}
