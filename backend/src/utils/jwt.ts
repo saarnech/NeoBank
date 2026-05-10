@@ -3,6 +3,8 @@ import jwt, { SignOptions } from 'jsonwebtoken';
 export type JwtPayload = {
     userId: string;
     email: string;
+    iat?: number;
+    exp?: number;
 };
 
 const SECRET: string = process.env.JWT_SECRET ?? '';

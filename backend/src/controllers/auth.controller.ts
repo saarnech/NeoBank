@@ -11,6 +11,7 @@ import {
     NoPendingRegistrationError,
 } from '../services/auth.service';
 import type { RegisterRequest, LoginRequest, VerifyOtpRequest } from '../types/auth';
+import { blacklistToken } from '../utils/tokenBlacklist';
 
 export async function register(req: Request, res: Response): Promise<void> {
     try {
@@ -75,4 +76,21 @@ export function verifyOtpController(req: Request, res: Response): void {
         console.error('Unexpected error in verifyOtp:', err);
         res.status(500).json({ error: 'Internal server error' });
     }
+}
+
+export function logout(req: Request, res: Response): void {
+    if (!req.user) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+    }
+
+    const authHeader = req.headers.authorization!;
+    const token = authHeader.slice('Bearer '.length);
+
+    // exp was verified to be valid (token isn't expired), so it must exist
+    const exp = req.user.exp ?? 0;
+
+    blacklistToken(token, exp);
+
+    res.status(204).send();
 }

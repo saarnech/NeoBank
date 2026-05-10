@@ -1,5 +1,6 @@
 import type {NextFunction, Request, Response} from 'express';
 import {verifyToken} from '../utils/jwt';
+import { isBlacklisted } from '../utils/tokenBlacklist';
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
     const authHeader = req.headers.authorization;
@@ -10,6 +11,11 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     }
 
     const token = authHeader.slice('Bearer '.length);
+
+    if (isBlacklisted(token)) {
+        res.status(401).json({ error: 'Token has been revoked' });
+        return;
+    }
 
     try {
         req.user = verifyToken(token);
