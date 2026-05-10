@@ -1,0 +1,55 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  phone         String
+  status        UserStatus @default(INACTIVE)
+  balance       Decimal  @default("0.00") @db.Decimal(20, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sentTransactions     Transaction[] @relation("Sender")
+  receivedTransactions Transaction[] @relation("Receiver")
+
+  @@map("users")
+}
+
+model Transaction {
+  id              String   @id @default(uuid())
+  senderId        String
+  receiverId      String
+  amount          Decimal  @db.Decimal(20, 2)
+  createdAt       DateTime @default(now())
+
+  sender   User @relation("Sender",   fields: [senderId],   references: [id])
+  receiver User @relation("Receiver", fields: [receiverId], references: [id])
+
+  @@map("transactions")
+  @@index([senderId])
+  @@index([receiverId])
+}
+
+enum UserStatus {
+  INACTIVE
+  ACTIVE
+}
+
+model PendingOtp {
+  email      String   @id
+  code       String
+  expiresAt  DateTime
+
+  @@map("pending_otps")
+}
