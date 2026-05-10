@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: banks_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: banks_user
+      POSTGRES_PASSWORD: banks_password
+      POSTGRES_DB: banks
+    ports:
+      - "5432:5432"
+    volumes:
+      - banks_db_data:/var/lib/postgresql/data
+
+volumes:
+  banks_db_data:
