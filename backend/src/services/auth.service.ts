@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { randomUUID, randomInt } from 'crypto';
 import bcrypt from 'bcrypt';
 import type {
     RegisterRequest,
@@ -70,8 +70,8 @@ function toProfile(user: StoredUser): UserProfile {
 }
 
 function generateOtp(): string {
-    // Random 6-digit string, zero-padded
-    const n = Math.floor(Math.random() * 1_000_000);
+    // Cryptographically secure 6-digit string, zero-padded
+    const n = randomInt(0, 1_000_000);
     return n.toString().padStart(6, '0');
 }
 

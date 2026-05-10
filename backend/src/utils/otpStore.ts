@@ -5,7 +5,9 @@ type PendingOtp = {
 
 const otps = new Map<string, PendingOtp>();
 
-export function setOtp(email: string, code: string, ttlMinutes: number = 10): void {
+const DEFAULT_TTL_MINUTES = Number(process.env.OTP_TTL_MINUTES) || 10;
+
+export function setOtp(email: string, code: string, ttlMinutes: number = DEFAULT_TTL_MINUTES): void {
     const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
     otps.set(email.toLowerCase(), { code, expiresAt });
 }
