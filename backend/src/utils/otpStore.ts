@@ -1,25 +1,40 @@
+import { prisma } from './prismaClient';
+
+const DEFAULT_TTL_MINUTES = Number(process.env.OTP_TTL_MINUTES) || 10;
+
 type PendingOtp = {
     code: string;
     expiresAt: Date;
 };
 
-const otps = new Map<string, PendingOtp>();
-
-const DEFAULT_TTL_MINUTES = Number(process.env.OTP_TTL_MINUTES) || 10;
-
-export function setOtp(email: string, code: string, ttlMinutes: number = DEFAULT_TTL_MINUTES): void {
+export async function setOtp(
+    email: string,
+    code: string,
+    ttlMinutes: number = DEFAULT_TTL_MINUTES,
+): Promise<void> {
     const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
-    otps.set(email.toLowerCase(), { code, expiresAt });
+    await prisma.pendingOtp.upsert({
+        where: { email: email.toLowerCase() },
+        update: { code, expiresAt },
+        create: { email: email.toLowerCase(), code, expiresAt },
+    });
 }
 
-export function getOtp(email: string): PendingOtp | undefined {
-    return otps.get(email.toLowerCase());
+export async function getOtp(email: string): Promise<PendingOtp | undefined> {
+    const row = await prisma.pendingOtp.findUnique({
+        where: { email: email.toLowerCase() },
+    });
+    if (!row) return undefined;
+    return { code: row.code, expiresAt: row.expiresAt };
 }
 
-export function deleteOtp(email: string): void {
-    otps.delete(email.toLowerCase());
+export async function deleteOtp(email: string): Promise<void> {
+    // deleteMany doesn't throw if the row doesn't exist (unlike delete)
+    await prisma.pendingOtp.deleteMany({
+        where: { email: email.toLowerCase() },
+    });
 }
 
-export function clearAll(): void {
-    otps.clear();
+export async function clearAll(): Promise<void> {
+    await prisma.pendingOtp.deleteMany({});
 }

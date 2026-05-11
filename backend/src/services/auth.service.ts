@@ -105,7 +105,7 @@ export async function registerUser(input: RegisterRequest): Promise<RegisterResp
     await save(newUser);
 
     const otpCode = generateOtp();
-    setOtp(newUser.email, otpCode);
+    await setOtp(newUser.email, otpCode);
     console.log(`[OTP] Generated code for ${newUser.email}: ${otpCode}`);
 
     return {
@@ -153,13 +153,13 @@ export async function verifyOtp(input: VerifyOtpRequest): Promise<AuthResponse> 
         throw new NoPendingRegistrationError();
     }
 
-    const pending = getOtp(email);
+    const pending = await getOtp(email);
     if (!pending) {
         throw new NoPendingRegistrationError();
     }
 
     if (pending.expiresAt < new Date()) {
-        deleteOtp(email);
+        await deleteOtp(email);
         throw new InvalidOtpError();
     }
 
@@ -171,7 +171,7 @@ export async function verifyOtp(input: VerifyOtpRequest): Promise<AuthResponse> 
     user.status = 'active';
     user.balance = '1000.00'; // starting balance
     await save(user);
-    deleteOtp(email);
+    await deleteOtp(email);
 
     return {
         token: signToken({ userId: user.id, email: user.email }),
