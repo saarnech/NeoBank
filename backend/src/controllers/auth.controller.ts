@@ -55,10 +55,10 @@ export async function login(req: Request, res: Response): Promise<void> {
     }
 }
 
-export function verifyOtpController(req: Request, res: Response): void {
+export async function verifyOtpController(req: Request, res: Response): Promise<void> {
     try {
         const input = req.body as VerifyOtpRequest;
-        const result = verifyOtp(input);
+        const result = await verifyOtp(input);
         res.status(200).json(result);
     } catch (err) {
         if (err instanceof InvalidInputError) {

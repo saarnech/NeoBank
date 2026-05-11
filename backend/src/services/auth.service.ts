@@ -87,7 +87,7 @@ export async function registerUser(input: RegisterRequest): Promise<RegisterResp
         throw new InvalidInputError('password must be at least 8 characters');
     }
 
-    const existing = findByEmail(email);
+    const existing = await findByEmail(email);
     if (existing) {
         throw new EmailAlreadyExistsError(existing.email);
     }
@@ -102,7 +102,7 @@ export async function registerUser(input: RegisterRequest): Promise<RegisterResp
         createdAt: new Date(),
     };
 
-    save(newUser);
+    await save(newUser);
 
     const otpCode = generateOtp();
     setOtp(newUser.email, otpCode);
@@ -121,7 +121,7 @@ export async function loginUser(input: LoginRequest): Promise<AuthResponse> {
         throw new InvalidInputError('email and password are required');
     }
 
-    const user = findByEmail(email);
+    const user = await findByEmail(email);
     if (!user) {
         throw new InvalidCredentialsError();
     }
@@ -141,14 +141,14 @@ export async function loginUser(input: LoginRequest): Promise<AuthResponse> {
     };
 }
 
-export function verifyOtp(input: VerifyOtpRequest): AuthResponse {
+export async function verifyOtp(input: VerifyOtpRequest): Promise<AuthResponse> {
     const { email, otp } = input;
 
     if (!email || !otp) {
         throw new InvalidInputError('email and otp are required');
     }
 
-    const user = findByEmail(email);
+    const user = await findByEmail(email);
     if (!user) {
         throw new NoPendingRegistrationError();
     }
@@ -170,7 +170,7 @@ export function verifyOtp(input: VerifyOtpRequest): AuthResponse {
     // Activate the user and clean up
     user.status = 'active';
     user.balance = '1000.00'; // starting balance
-    save(user);
+    await save(user);
     deleteOtp(email);
 
     return {

@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { findUserById } from '../services/user.service';
 
-export function getMe(req: Request, res: Response): void {
+export async function getMe(req: Request, res: Response): Promise<void> {
     // requireAuth middleware guarantees req.user is set
     if (!req.user) {
         // Defensive — should never happen if middleware ran
@@ -9,7 +9,7 @@ export function getMe(req: Request, res: Response): void {
         return;
     }
 
-    const user = findUserById(req.user.userId);
+    const user = await findUserById(req.user.userId);
     if (!user) {
         res.status(404).json({ error: 'User not found' });
         return;

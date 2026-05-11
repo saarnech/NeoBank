@@ -1,22 +1,62 @@
 import type { StoredUser } from '../types/auth';
+import { prisma } from './prismaClient';
 
-const users = new Map<string, StoredUser>();
-
-export function findByEmail(email: string): StoredUser | undefined {
-    return users.get(email.toLowerCase());
+// Map Prisma's database row to our internal StoredUser type
+function toStoredUser(dbRow: {
+    id: string;
+    email: string;
+    passwordHash: string;
+    phone: string;
+    status: 'INACTIVE' | 'ACTIVE';
+    balance: { toString(): string };
+    createdAt: Date;
+}): StoredUser {
+    return {
+        id: dbRow.id,
+        email: dbRow.email,
+        passwordHash: dbRow.passwordHash,
+        phone: dbRow.phone,
+        status: dbRow.status === 'ACTIVE' ? 'active' : 'inactive',
+        balance: dbRow.balance.toString(),
+        createdAt: dbRow.createdAt,
+    };
 }
 
-export function save(user: StoredUser): void {
-    users.set(user.email.toLowerCase(), user);
+export async function findByEmail(email: string): Promise<StoredUser | undefined> {
+    const user = await prisma.user.findUnique({
+        where: { email: email.toLowerCase() },
+    });
+    return user ? toStoredUser(user) : undefined;
 }
 
-export function clear(): void {
-    users.clear();
+export async function findById(id: string): Promise<StoredUser | undefined> {
+    const user = await prisma.user.findUnique({
+        where: { id },
+    });
+    return user ? toStoredUser(user) : undefined;
 }
 
-export function findById(id: string): StoredUser | undefined {
-    for (const user of users.values()) {
-        if (user.id === id) return user;
-    }
-    return undefined;
+export async function save(user: StoredUser): Promise<void> {
+    await prisma.user.upsert({
+        where: { id: user.id },
+        update: {
+            email: user.email.toLowerCase(),
+            passwordHash: user.passwordHash,
+            phone: user.phone,
+            status: user.status === 'active' ? 'ACTIVE' : 'INACTIVE',
+            balance: user.balance,
+        },
+        create: {
+            id: user.id,
+            email: user.email.toLowerCase(),
+            passwordHash: user.passwordHash,
+            phone: user.phone,
+            status: user.status === 'active' ? 'ACTIVE' : 'INACTIVE',
+            balance: user.balance,
+        },
+    });
+}
+
+export async function clear(): Promise<void> {
+    await prisma.user.deleteMany({});
 }
