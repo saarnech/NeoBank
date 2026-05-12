@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import transactionRoutes from './routes/transaction.routes';
@@ -16,6 +16,22 @@ app.get('/health', (req: Request, res: Response) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/transactions', transactionRoutes);
+
+// Global error handler — must have 4 parameters so Express recognizes it as an error handler
+app.use((err: Error & { type?: string; status?: number }, req: Request, res: Response, _next: NextFunction) => {
+    if (err.type === 'entity.parse.failed') {
+        res.status(400).json({ error: 'Invalid JSON in request body' });
+        return;
+    }
+
+    if (err.status === 400 || err.status === 413) {
+        res.status(err.status).json({ error: err.message });
+        return;
+    }
+
+    console.error('Unhandled error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+});
 
 app.listen(PORT, () => {
     console.log(`Server listening on http://localhost:${PORT}`);
