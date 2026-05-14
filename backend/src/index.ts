@@ -3,6 +3,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import transactionRoutes from './routes/transaction.routes';
+import { verifyEmailConfig } from './utils/emailer';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -33,6 +34,12 @@ app.use((err: Error & { type?: string; status?: number }, req: Request, res: Res
     res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`Server listening on http://localhost:${PORT}`);
+    try {
+        await verifyEmailConfig();
+        console.log('Email configuration verified');
+    } catch (err) {
+        console.error('Email configuration failed:', err);
+    }
 });

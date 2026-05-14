@@ -12,6 +12,7 @@ import type {
 import { findByEmail, save } from '../utils/userStore';
 import { setOtp, getOtp, deleteOtp } from '../utils/otpStore';
 import { signToken } from '../utils/jwt';
+import { sendEmail } from '../utils/emailer';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -56,6 +57,13 @@ export class NoPendingRegistrationError extends Error {
     constructor() {
         super('No pending registration found for this email');
         this.name = 'NoPendingRegistrationError';
+    }
+}
+
+export class AccountAlreadyActiveError extends Error {
+    constructor() {
+        super('Account already verified');
+        this.name = 'AccountAlreadyActiveError';
     }
 }
 
@@ -106,7 +114,24 @@ export async function registerUser(input: RegisterRequest): Promise<RegisterResp
 
     const otpCode = generateOtp();
     await setOtp(newUser.email, otpCode);
-    console.log(`[OTP] Generated code for ${newUser.email}: ${otpCode}`);
+
+    // Send via email
+    await sendEmail(
+        newUser.email,
+        'Your Banks verification code',
+        `Hello,
+
+Your verification code is: ${otpCode}
+
+This code expires in 10 minutes. If you didn't request this, you can ignore this email.
+
+— Banks`,
+    );
+
+// Dev convenience: log to console so we don't have to check inbox during testing
+    if (process.env.NODE_ENV !== 'production') {
+        console.log(`[OTP] Generated code for ${newUser.email}: ${otpCode}`);
+    }
 
     return {
         message: 'User registered. OTP sent.',
@@ -177,4 +202,39 @@ export async function verifyOtp(input: VerifyOtpRequest): Promise<AuthResponse> 
         token: signToken({ userId: user.id, email: user.email }),
         user: toProfile(user),
     };
+}
+
+export async function resendOtp(email: string): Promise<void> {
+    if (!email) {
+        throw new InvalidInputError('email is required');
+    }
+
+    const user = await findByEmail(email);
+    if (!user) {
+        throw new NoPendingRegistrationError();
+    }
+
+    if (user.status === 'active') {
+        throw new AccountAlreadyActiveError();
+    }
+
+    // Generate fresh OTP, replacing any existing one
+    const otpCode = generateOtp();
+    await setOtp(user.email, otpCode);
+
+    await sendEmail(
+        user.email,
+        'Your Banks verification code',
+        `Hello,
+
+Your verification code is: ${otpCode}
+
+This code expires in 10 minutes. If you didn't request this, you can ignore this email.
+
+— Banks`,
+    );
+
+    if (process.env.NODE_ENV !== 'production') {
+        console.log(`[OTP] Resent code for ${user.email}: ${otpCode}`);
+    }
 }

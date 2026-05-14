@@ -3,12 +3,14 @@ import {
     registerUser,
     loginUser,
     verifyOtp,
+    resendOtp,
     EmailAlreadyExistsError,
     InvalidInputError,
     InvalidCredentialsError,
     AccountInactiveError,
     InvalidOtpError,
     NoPendingRegistrationError,
+    AccountAlreadyActiveError,
 } from '../services/auth.service';
 import type { RegisterRequest, LoginRequest, VerifyOtpRequest } from '../types/auth';
 import { blacklistToken } from '../utils/tokenBlacklist';
@@ -93,4 +95,27 @@ export function logout(req: Request, res: Response): void {
     blacklistToken(token, exp);
 
     res.status(204).send();
+}
+
+export async function resendOtpController(req: Request, res: Response): Promise<void> {
+    try {
+        const { email } = req.body as { email: string };
+        await resendOtp(email);
+        res.status(200).json({ message: 'Verification code sent' });
+    } catch (err) {
+        if (err instanceof InvalidInputError) {
+            res.status(400).json({ error: err.message });
+            return;
+        }
+        if (err instanceof NoPendingRegistrationError) {
+            res.status(404).json({ error: err.message });
+            return;
+        }
+        if (err instanceof AccountAlreadyActiveError) {
+            res.status(409).json({ error: err.message });
+            return;
+        }
+        console.error('Unexpected error in resendOtp:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 }
