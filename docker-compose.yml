@@ -12,5 +12,23 @@ services:
     volumes:
       - banks_db_data:/var/lib/postgresql/data
 
+  backend:
+    build: ./backend
+    container_name: banks_backend
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://banks_user:banks_password@db:5432/banks
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      PORT: 3000
+      OTP_TTL_MINUTES: ${OTP_TTL_MINUTES}
+      EMAIL_USER: ${EMAIL_USER}
+      EMAIL_PASS: ${EMAIL_PASS}
+      EMAIL_FROM: ${EMAIL_FROM}
+    ports:
+      - "3000:3000"
+
 volumes:
   banks_db_data:
