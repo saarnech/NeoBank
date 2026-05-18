@@ -4,10 +4,15 @@ import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import transactionRoutes from './routes/transaction.routes';
 import { verifyEmailConfig } from './utils/emailer';
+import cors from 'cors';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
+app.use(cors({
+    origin: 'http://localhost:5173',
+    credentials: true,
+}));
 app.use(express.json());
 
 app.get('/health', (req: Request, res: Response) => {
