@@ -5,40 +5,62 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Transfer from './pages/Transfer';
 import ProtectedRoute from './components/ProtectedRoute';
+import PublicOnlyRoute from './components/PublicOnlyRoute';
 
 function App() {
-  return (
-      <BrowserRouter>
-        <Routes>
-          {/* Public routes */}
-          <Route path="/register" element={<Register />} />
-          <Route path="/verify-otp" element={<VerifyOtp />} />
-          <Route path="/login" element={<Login />} />
+    return (
+        <BrowserRouter>
+            <Routes>
+                {/* Public routes — redirect authenticated users to dashboard */}
+                <Route
+                    path="/register"
+                    element={
+                        <PublicOnlyRoute>
+                            <Register />
+                        </PublicOnlyRoute>
+                    }
+                />
+                <Route
+                    path="/verify-otp"
+                    element={
+                        <PublicOnlyRoute>
+                            <VerifyOtp />
+                        </PublicOnlyRoute>
+                    }
+                />
+                <Route
+                    path="/login"
+                    element={
+                        <PublicOnlyRoute>
+                            <Login />
+                        </PublicOnlyRoute>
+                    }
+                />
 
-          {/* Protected routes */}
-          <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-          />
-          <Route
-              path="/transfer"
-              element={
-                <ProtectedRoute>
-                  <Transfer />
-                </ProtectedRoute>
-              }
-          />
+                {/* Protected routes — redirect unauthenticated users to login */}
+                <Route
+                    path="/dashboard"
+                    element={
+                        <ProtectedRoute>
+                            <Dashboard />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/transfer"
+                    element={
+                        <ProtectedRoute>
+                            <Transfer />
+                        </ProtectedRoute>
+                    }
+                />
 
-          {/* Default redirect */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </BrowserRouter>
-  );
+                {/* Default redirect */}
+                <Route path="/" element={<Navigate to="/login" replace />} />
+                <Route path="*" element={<Navigate to="/login" replace />} />
+            </Routes>
+        </BrowserRouter>
+    );
 }
 
 export default App;

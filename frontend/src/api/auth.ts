@@ -40,3 +40,18 @@ export async function verifyOtp(input: VerifyOtpInput): Promise<AuthResponse> {
 export async function resendOtp(email: string): Promise<void> {
     await apiClient.post('/auth/resend-otp', { email });
 }
+
+export type LoginInput = {
+    email: string;
+    password: string;
+};
+
+export async function loginUser(input: LoginInput): Promise<AuthResponse> {
+    const response = await apiClient.post<AuthResponse>('/auth/login', input);
+    return response.data;
+}
+
+export async function fetchCurrentUser(): Promise<User> {
+    const response = await apiClient.get<User>('/users/me');
+    return response.data;
+}
