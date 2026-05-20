@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { connectSocket, disconnectSocket } from '../api/socket';
 
 type User = {
     id: string;
@@ -29,12 +30,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             try {
                 setToken(storedToken);
                 setUser(JSON.parse(storedUser));
+                connectSocket(storedToken);
             } catch {
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
             }
         }
         setIsLoading(false);
+
+        return () => {
+            disconnectSocket();
+        };
     }, []);
 
     function login(newToken: string, newUser: User) {
@@ -42,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('user', JSON.stringify(newUser));
         setToken(newToken);
         setUser(newUser);
+        connectSocket(newToken);
     }
 
     function logout() {
@@ -49,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('user');
         setToken(null);
         setUser(null);
+        disconnectSocket();
     }
 
     return (

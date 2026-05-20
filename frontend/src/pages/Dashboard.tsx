@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { fetchCurrentUser } from '../api/auth';
 import { fetchTransactions, type Transaction } from '../api/transactions';
+import { getSocket } from '../api/socket';
 
 function Dashboard() {
     const navigate = useNavigate();
@@ -49,6 +50,31 @@ function Dashboard() {
         loadData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    useEffect(() => {
+        const socket = getSocket();
+        if (!socket) return;
+
+        function handleTransactionReceived(tx: Transaction) {
+            console.log('[dashboard] received transaction:', tx);
+
+            // Prepend to the transaction list
+            setTransactions((prev) => [tx, ...prev]);
+
+            // Update balance: add the amount to the current user's balance
+            if (token && user) {
+                const newBalance = (Number(user.balance) + Number(tx.amount)).toFixed(2);
+                login(token, { ...user, balance: newBalance });
+            }
+        }
+
+        socket.on('transaction:received', handleTransactionReceived);
+
+        return () => {
+            socket.off('transaction:received', handleTransactionReceived);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [token, user?.id]);
 
     function handleLogout() {
         logout();
