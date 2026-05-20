@@ -4,6 +4,7 @@ import type {
     TransferRequest,
     PaginatedTransactions,
 } from '../types/transaction';
+import type { Server as SocketServer } from 'socket.io';
 
 // --- Custom error classes ---
 
@@ -65,6 +66,7 @@ async function toTransaction(row: {
 export async function createTransaction(
     senderId: string,
     input: TransferRequest,
+    io?: SocketServer,
 ): Promise<Transaction> {
     const { recipientEmail, amount } = input;
 
@@ -144,6 +146,17 @@ export async function createTransaction(
             recipientEmail: recipient.email,
         };
     });
+
+    // Notify the recipient in real time (if Socket.IO is available)
+    if (io) {
+        io.to(`user:${result.receiverId}`).emit('transaction:received', {
+            id: result.id,
+            senderEmail: result.senderEmail,
+            recipientEmail: result.recipientEmail,
+            amount: result.amount.toString(),
+            createdAt: result.createdAt,
+        });
+    }
 
     return {
         id: result.id,

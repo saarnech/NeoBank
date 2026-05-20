@@ -35,7 +35,8 @@ export async function postTransaction(req: Request, res: Response): Promise<void
 
     try {
         const input = req.body as TransferRequest;
-        const result = await createTransaction(req.user.userId, input);
+        const io = req.app.get('io');
+        const result = await createTransaction(req.user.userId, input, io);
         res.status(201).json(result);
     } catch (err) {
         if (err instanceof InvalidTransferError) {
