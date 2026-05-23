@@ -92,3 +92,38 @@ For a small app with auth state being the primary cross-cutting concern, **React
 
 - Both Express and Socket.IO attach to the same `http.Server`.
 - `io` instance stored on Express app via `app.set('io', io)` and retrieved in controllers via `req.app.get('io')`. Keeps the service layer decoupled from a global Socket.IO state.
+
+## Video calling
+
+### Jitsi Meet (embedded via JavaScript SDK)
+
+**Why Jitsi:**
+- Free, open-source, no API key needed.
+- Drop-in SDK loaded from a CDN — no auth/billing infrastructure on our side.
+- Active project with good docs.
+
+**Considered alternatives:**
+- **Twilio Video / Vonage Video** — proper SDKs with full control, but require paid accounts and API key management.
+- **WebRTC directly** — would mean writing signaling, ICE, all of it. Way out of scope.
+
+**Integration pattern:**
+- Loaded via `<script src="https://meet.jit.si/external_api.js" async>` in `index.html`.
+- TypeScript declaration in `src/types/jitsi.d.ts` makes `window.JitsiMeetExternalAPI` typed.
+- React's `useRef` holds a reference to the container DOM node; a `useEffect` initializes Jitsi once the container exists in the DOM.
+- Cleanup on unmount via `api.dispose()` to prevent leaked iframes.
+
+**Pattern lesson — "state-first, then-effect":**
+- Tried to initialize Jitsi directly in the click handler. Failed: the container div wasn't in the DOM yet (its render was gated on `inCall === true`).
+- Fixed by separating: click handler sets state → React re-renders → `useEffect` sees the new DOM state and initializes Jitsi.
+- This is a real and common React pattern.
+
+**Room naming: option A (per user).**
+- Each user has a stable room based on their email: `neobank-alice-example-com`.
+- To "call" someone, enter their email; both users land in the same room.
+- Realistic for the "confirm a transfer face-to-face" use case.
+- Considered: per-pair rooms, per-call random rooms, single shared room. Per-user was the simplest mapping to "I want to call this person."
+
+**Known limitation:**
+- `meet.jit.si` (the public Jitsi server) now requires at least one moderator to start a meeting. Anonymous users get "Asking to join meeting…" until a Jitsi-authenticated user joins.
+- In production, would either self-host Jitsi (full control) or use JaaS (Jitsi-as-a-Service, paid tier with API tokens).
+- For our learning project: the integration is fully working; the gate is policy, not code.

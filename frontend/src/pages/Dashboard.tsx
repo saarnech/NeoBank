@@ -136,9 +136,14 @@ function Dashboard() {
                             {user?.email}
                         </Typography>
                     </Box>
-                    <Button onClick={handleSendMoney} variant="contained" size="large">
-                        Send money
-                    </Button>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <Button onClick={handleSendMoney} variant="contained" size="large">
+                            Send money
+                        </Button>
+                        <Button onClick={() => navigate('/call')} variant="outlined" size="large">
+                            Video call
+                        </Button>
+                    </Box>
                 </Paper>
 
                 {/* Transactions */}

@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import Transfer from './pages/Transfer';
 import ProtectedRoute from './components/ProtectedRoute';
 import PublicOnlyRoute from './components/PublicOnlyRoute';
+import Call from './pages/Call';
 
 function App() {
     return (
@@ -51,6 +52,14 @@ function App() {
                     element={
                         <ProtectedRoute>
                             <Transfer />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/call"
+                    element={
+                        <ProtectedRoute>
+                            <Call />
                         </ProtectedRoute>
                     }
                 />
