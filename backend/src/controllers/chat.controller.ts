@@ -34,7 +34,11 @@ export async function postChat(req: Request, res: Response, next: NextFunction) 
             return;
         }
 
-        const reply = await chat(messages);
+        if (!req.user) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+        const reply = await chat(messages, req.user.userId);
         res.json({ reply });
     } catch (err) {
         next(err);

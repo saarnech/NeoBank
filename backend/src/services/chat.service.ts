@@ -1,13 +1,25 @@
+import { ChatOpenAI } from '@langchain/openai';
+import { createAgent } from 'langchain';
+import { createUserTools } from '../agent/tools';
+
 type ChatMessage = {
     role: 'system' | 'user' | 'assistant';
     content: string;
 };
 
-const SYSTEM_PROMPT = `You are a helpful customer service assistant for NeoBank, an online banking app.
+const SYSTEM_PROMPT = `You are a helpful banking assistant for NeoBank, an online banking app.
 
-You help users understand how the app works: registration, login, OTP verification, viewing their balance, transferring money, and using video calls.
+You help users with:
+- Their account: balance, recent transactions, email on file.
+- How the app works: registration, login, OTP verification, transferring money, and video calls.
+- General banking questions.
 
-You can answer general banking questions (what is a wire transfer? what's a balance? etc.) but you do NOT have access to any specific user's account, balance, or transaction data.
+You have tools to access the logged-in user's data:
+- getMyBalance: returns the user's current balance.
+- getMyEmail: returns the user's email address.
+- listMyTransactions: returns recent transactions (specify a limit between 1 and 20).
+
+Use tools whenever the user asks about their account. Do NOT make up numbers, emails, or transaction details — always call a tool when you need specific user data.
 
 NeoBank specifics (be accurate about these — don't invent details):
 - Users have ONE account each. There is no account selection.
@@ -15,48 +27,41 @@ NeoBank specifics (be accurate about these — don't invent details):
 - Transfers between NeoBank users are INSTANT. No waiting period, no clearing time.
 - Verification during sign-up uses EMAIL-based OTP. Not SMS.
 - Video calls use Jitsi and are room-based by user email.
-- For balance and transaction history, tell users to check their dashboard directly.
-- An "AI Banking Assistant" with access to user data is coming soon — for now, account-specific actions must be done via the app's UI.
-
-If a user asks you to perform an action (transfer money, change their email, etc.), explain that you can only provide guidance — they need to use the app's features themselves.
+- To send money or update account info, the user must use the app's UI. You cannot perform actions on their behalf.
 
 Keep responses concise and friendly. If you don't know something, say so honestly rather than guessing.`;
 
-export async function chat(messages: ChatMessage[]): Promise<string> {
+export async function chat(messages: ChatMessage[], userId: string): Promise<string> {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
         throw new Error('GROQ_API_KEY not configured');
     }
 
-    const fullMessages: ChatMessage[] = [
-        { role: 'system', content: SYSTEM_PROMPT },
-        ...messages,
-    ];
-
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
+    const model = new ChatOpenAI({
+        model: 'openai/gpt-oss-120b',
+        apiKey,
+        configuration: {
+            baseURL: 'https://api.groq.com/openai/v1',
         },
-        body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages: fullMessages,
-            temperature: 0.7,
-            max_tokens: 500,
-        }),
     });
 
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Groq API error (${response.status}): ${errorText}`);
-    }
+    const tools = createUserTools(userId);
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    const agent = createAgent({
+        model,
+        tools,
+        systemPrompt: SYSTEM_PROMPT,
+    });
+
+    const result = await agent.invoke({
+        messages,
+    });
+
+    const lastMessage = result.messages[result.messages.length - 1];
+    const content = lastMessage.content;
 
     if (typeof content !== 'string') {
-        throw new Error('Unexpected response shape from Groq');
+        throw new Error('Unexpected response shape from agent');
     }
 
     return content;

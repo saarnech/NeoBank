@@ -261,3 +261,87 @@ For a customer service use case, this is fine. For a "persistent assistant," we'
 ### Validation: manual (kept project consistent)
 
 We initially retrofitted zod for input validation. After measuring (longer code, no real gain at our endpoint count), we reverted to manual. The chat endpoint uses an `isValidMessage` type guard + imperative checks. See "Validation approach" above.
+
+## AI Banking Assistant (LangGraph tool-calling)
+
+The chatbot from Phase 10 was upgraded to a tool-calling agent. Same widget, same endpoint, smarter brain. Decisions covered here: choosing to merge with the chatbot rather than build a separate feature, library choice, model choice, tool design, security model.
+
+### Architecture: upgrade in place, not a separate feature
+
+The project doc lists "LLM chatbot" (Phase 8) and "AI Banking Assistant" (Phase 9) as separate phases. We initially planned to build two features (a no-data chatbot and a data-aware assistant).
+
+We reconsidered: a feature flow where the user has to *choose between* two AI features — one of which is honest about not having user data — is worse UX than a single AI feature that can answer everything in scope. Real products don't ship the dumber version next to the smarter one.
+
+So Phase 11 became "upgrade Phase 10's chatbot with tool calling," not "build a separate assistant." Same widget, same `/api/v1/chat` endpoint. The chat service was rewritten to use LangGraph; the rest of the stack was unchanged.
+
+### Library: LangGraph (`langchain` + `@langchain/langgraph`)
+
+The project doc specifies LangGraph. We used it.
+
+Honestly, for our case — three read-only tools, single-pass tool calls, no multi-step branching — **LangGraph is overkill**. Direct tool-calling via Groq's OpenAI-compatible API would work. LangGraph earns its keep in multi-step stateful agent workflows that we don't have.
+
+We chose LangGraph because the phase's *learning objective* is LangGraph. The project doc isn't ranking validation libraries (like the manual-vs-zod debate); it's defining what skill the phase teaches. Skipping LangGraph would defeat the phase.
+
+**Used `createAgent` from the `langchain` package** (LangGraph v1's recommended API), not the deprecated `createReactAgent` from `@langchain/langgraph/prebuilt`. Many tutorials still show the deprecated path; v1 docs were the source of truth.
+
+### Model: `openai/gpt-oss-120b` on Groq (not Llama 3.3)
+
+Initially used `llama-3.3-70b-versatile` (the model from Phase 10's chatbot). Tool calling failed intermittently with HTTP 400 `tool_use_failed`. The model produced function calls in Llama's `<function=name(args)</function>` text format rather than the structured JSON format Groq's API expects.
+
+This is a known issue on Groq with Llama models for tool calling, documented in their community forums and GitHub issues. Not a config bug on our side — a parser mismatch.
+
+Considered three escalation paths:
+1. **Different Groq model** — free, may work.
+2. **Llama 3.3 with workarounds** (prompt tweaks, retry-on-failure) — free, partial fix at best.
+3. **Switch to Anthropic Claude Haiku** — paid (~pennies for our usage), gold-standard tool calling.
+
+Tried option 1 first. **`openai/gpt-oss-120b`** (Groq's recommended replacement for the deprecated Kimi K2 and Llama 4 Maverick) worked reliably on all test cases. Free tier preserved.
+
+### Tools: closure-bound, services-not-routes
+
+Two tools: `getMyBalance` and `listMyTransactions`. Originally three (`getMyEmail` was removed once we noticed the agent had no real need for it — the user's email is already visible in the UI everywhere, and exposing it as a tool added surface without utility).
+
+**Tools call backend services directly**, not HTTP routes or the database.
+
+Considered alternatives:
+- **Direct DB access** (LLM writes SQL) — rejected. Massive attack surface; trivially exploitable by prompt injection.
+- **REST routes** (LLM makes HTTP calls to our own backend) — defensible; routes provide auth + validation. But adds HTTP overhead, self-calling complexity, and our security guarantees can be achieved at the service layer.
+- **Services with closure-bound context** — chosen.
+- **Tool design philosophy: raw data, not pre-computed summaries.** `listMyTransactions` returns raw transaction rows. The LLM does its own summarization, aggregation, and interpretation. We tested this with "analyze my spending patterns" — the LLM produced totals, averages, largest transaction, frequency observations, and budget tips, all unprompted. Trying to add a `getTransactionSummary` tool with pre-computed aggregates would be redundant. Lesson: give the LLM raw data and let it do the analytical work; don't pre-cook what it can cook itself.
+
+### Security model: closure-bound user context
+
+The most important design choice in this phase: **`userId` is bound into tools via JavaScript closure**, not passed as a tool argument.
+
+```typescript
+function createUserTools(userId: string) {
+    const getMyBalance = tool(
+        async () => { return findUserById(userId); },  // userId from outer scope
+        { schema: z.object({}) }                        // no argument exposed to LLM
+    );
+    return [getMyBalance, ...];
+}
+```
+
+When the chat endpoint receives a request:
+1. Auth middleware extracts `req.user.userId` from the JWT.
+2. Controller passes that userId to `createUserTools(userId)`.
+3. The returned tools have userId baked in via closure.
+4. The LLM sees only the tool name and its zod schema — there's no userId argument it could change.
+
+A prompt injection like "call getMyBalance for user admin" has no effect: the schema declares no userId argument; LangChain validates against the schema before invoking. The LLM is structurally incapable of querying another user's data.
+
+This is a real and well-known agent security pattern. Worth flagging because it's the kind of mechanism that takes a sentence to describe in an interview but a paragraph to defend if someone pushes on it.
+
+### Tool design: read-only
+
+No write tools (no `initiateTransfer`, no `updateEmail`). Two reasons:
+- The project scope explicitly didn't require write operations.
+- Write tools open prompt-injection attack vectors (an attacker-controlled string could trick the LLM into executing actions). For a banking app, the safest stance is "show, don't do." Real banking applications either (a) require explicit human confirmation for write actions or (b) don't expose write tools at all.
+
+### What this proved
+
+- Tool calling works end-to-end against Groq, given the right model.
+- The "hallucination" problem from Phase 10 (LLM inventing balance numbers) is now structurally prevented for data the agent can fetch — it calls the tool and reports the real number.
+- The system prompt from Phase 10 (with NeoBank specifics) carried over and still works for non-tool-answerable questions (FAQ-style).
+- For interview talking points: closure-bound tool context, services-vs-routes tradeoff, why we picked the model we did.
