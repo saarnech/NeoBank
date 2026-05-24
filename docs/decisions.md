@@ -190,3 +190,74 @@ For a small app with auth state being the primary cross-cutting concern, **React
 - `meet.jit.si` (the public Jitsi server) now requires at least one moderator to start a meeting. Anonymous users get "Asking to join meeting…" until a Jitsi-authenticated user joins.
 - In production, would either self-host Jitsi (full control) or use JaaS (Jitsi-as-a-Service, paid tier with API tokens).
 - For our learning project: the integration is fully working; the gate is policy, not code.
+
+## LLM customer service chatbot
+
+### Provider: Groq (Llama 3.3 70B)
+
+**Why Groq:**
+- Genuinely free developer tier — no credit card, no time limit, only rate limits.
+- OpenAI-compatible API surface, so provider-swapping is one-line.
+- Llama 3.3 70B is capable enough for chatbot Q&A and handles structured outputs (for Phase 11's tool-calling).
+
+**Considered alternatives:**
+- **OpenAI** (the doc's default) — gold-standard models but requires paid credits past trial.
+- **Anthropic** — best tool-calling I'd reach for, but trial credits burn fast under iteration.
+- **Grok (xAI)** — free credits via data-sharing program, more setup overhead, less common in tutorials.
+
+For a learning project with iterative testing, Groq's free tier was the right tradeoff. Skills transfer cleanly to any provider — we use only the OpenAI-compatible `/v1/chat/completions` shape.
+
+### Architecture: backend proxy
+
+The frontend never talks to Groq directly. All chat requests go through the backend at `/api/v1/chat`, which holds the `GROQ_API_KEY` in its `.env` and proxies to Groq.
+
+**Why proxy:**
+- API key never reaches the browser. Anyone could read `localStorage` or inspect axios calls — exposing the key would let them burn through credits on someone else's tab.
+- Lets us validate, rate-limit, log, and authorize per-user on our terms.
+- Lets us inject the system prompt server-side so users can't override the assistant's persona.
+
+The frontend sends only `{ messages }`. The backend prepends the system prompt before calling Groq.
+
+### System prompt design
+
+The chatbot is positioned as a NeoBank customer service Q&A. The prompt explicitly states:
+- It is NeoBank's assistant.
+- It does NOT have access to user-specific account data (balance, transactions).
+- For account-specific actions, it should redirect users to the app's UI.
+
+**The data-access guardrail worked.** When asked "What's my balance?", the chatbot correctly said "I don't have access to your account information."
+
+**Initial prompt allowed factual hallucination about app features.** When asked "How do I transfer money?", the LLM invented details that don't exist in our app (separate account selection, mobile-number recipients, multi-hour transfer delays). It described a plausible *generic* banking transfer, not *our* transfer. The system prompt told it our domain but not the specific behavior in detail.
+
+**Tightened the prompt with a "NeoBank specifics" section** listing concrete facts about the app: single accounts, email-only recipients, instant transfers, email OTP, etc. Plus an explicit instruction to "say so honestly rather than guess" when uncertain.
+
+**After tightening, the hallucinations stopped on our test cases.** Transfer questions now correctly describe email-based recipients and instant delivery. Conversation context still held across follow-ups. The data-access guardrail still held.
+
+### The remaining ceiling
+
+Even with a tighter prompt, this approach has natural limits:
+- The prompt grows linearly with feature coverage. Add 10 more features and the prompt becomes unwieldy.
+- The LLM still chooses which prompt-rules to follow. We have no enforcement.
+- Anything not in the prompt is open to invention.
+
+Three fixes exist for going further, each costlier:
+1. **More detailed prompt** — what we just did. Cheap, partial.
+2. **RAG (retrieval-augmented generation)** — vector DB of feature docs, retrieved per query. Real engineering investment.
+3. **Tool-calling assistant** — LLM calls actual functions for real data. **This is Phase 11.**
+
+The two features serve different roles: the chatbot handles general questions and feature-FAQ; the assistant (Phase 11) handles account-specific operations with real data access.
+### Conversation state
+
+Stored in React component state on the frontend. Sent in full with each request. No backend persistence.
+
+**Tradeoffs:**
+- Pro: simple, no DB schema for chat, no privacy concerns about stored conversations.
+- Pro: each chat session is independent (refresh → fresh start), which suits "I have a question right now" framing.
+- Con: every request grows. After 10 messages, you're sending 10 messages back. For a long session this could matter — we cap at 20 messages per request on the backend as a safety net.
+- Con: no resume across sessions. If the user closes the tab, the conversation is gone.
+
+For a customer service use case, this is fine. For a "persistent assistant," we'd add a DB-backed conversation history.
+
+### Validation: manual (kept project consistent)
+
+We initially retrofitted zod for input validation. After measuring (longer code, no real gain at our endpoint count), we reverted to manual. The chat endpoint uses an `isValidMessage` type guard + imperative checks. See "Validation approach" above.

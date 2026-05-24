@@ -15,6 +15,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { fetchCurrentUser } from '../api/auth';
 import { fetchTransactions, type Transaction } from '../api/transactions';
 import { getSocket } from '../api/socket';
+import ChatWidget from '../components/ChatWidget';
 
 function Dashboard() {
     const navigate = useNavigate();
@@ -182,6 +183,7 @@ function Dashboard() {
                     </Stack>
                 )}
             </Box>
+            <ChatWidget />
         </Box>
     );
 }
