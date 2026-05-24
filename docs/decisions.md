@@ -2,6 +2,22 @@
 
 Architecture decisions, tradeoffs, and rationale. Maintained as the project progresses.
 
+## Project plan revisions
+
+The project doc lists 13 phases. We have made two structural changes:
+
+1. **Reordered for sensible dependency flow.** The doc puts Docker after frontend; we did it before, so we'd have a portable backend container by the time we built the frontend. Reordering preserved all the doc's content; only the sequence changed.
+
+2. **Added two phases not in the doc:**
+    - **CI/CD (Jenkins)** — testing alone isn't enough without continuous validation. Real-world practice.
+    - **Deployment** — the doc has a "Deploy BE/FE" phase but we treat it as the final step rather than mid-project, so that we ship a tested + CI-validated app, not an in-progress one.
+
+3. **Split LLM work into two phases:**
+    - **LLM chatbot** — simple Q&A widget, learns the LLM-proxy pattern.
+    - **AI Banking Assistant (LangGraph)** — tool-calling assistant that reads user data. This is doc Phase 9, treated as its own phase.
+
+Phase order rationale: features → tests → CI/CD → deploy. Backtracking from deploy is the most expensive change to undo, so it goes last.
+
 ## Backend
 
 ### Database: PostgreSQL + Prisma (not MongoDB + Mongoose)
@@ -39,6 +55,53 @@ The project doc specified MongoDB + Mongoose. We chose Postgres + Prisma instead
 - The frontend dev server runs natively (Vite) for fast iteration.
 - Backend image uses multi-stage build: dependencies/build in one stage, runtime stage with only `dist/` and production deps.
 - Notable hiccup: Prisma 6's npm install pulls peerOptional dev dependencies into the image, bloating it to ~1GB. Mitigated by `rm -rf node_modules/prisma node_modules/effect node_modules/fast-check node_modules/typescript` in the builder stage. Final image ~280MB.
+
+## Validation approach
+
+The backend uses **manual input validation** in each controller (parsing `req.body`, checking types and shapes with imperative `if` statements) rather than a schema-based library like zod.
+
+**Mid-project, we briefly retrofitted to zod and then reverted.** Worth documenting why.
+
+### What we tried
+
+Zod is a TypeScript-first runtime validation library: define a schema once, get both runtime checks and a derived TypeScript type from the same source. In theory: less duplication, no type drift, more elegant.
+
+We converted three controllers (`chat`, `transaction`, and were about to do `auth`) to zod schemas.
+
+### Why we reverted
+
+Per-file, zod consistently produced **longer code**, not shorter:
+- `transaction.controller.ts`: 47 lines manual → 67 lines zod (+40%)
+- `auth.controller.ts` projection: ~88 lines manual → ~110 lines zod (+25%)
+
+The extra lines came from:
+- Forced `try/catch` blocks around code that didn't need them with manual validation.
+- Repeated `instanceof z.ZodError` handling per endpoint.
+- Schemas + helper functions that have value, but not enough to offset.
+
+The promised wins — shared validators (`emailSchema`, `passwordSchema`), composability, no type drift — were real but small for a project with this many endpoints. Zod's value compounds with API size; we have ~6 endpoints, which isn't enough surface area for the compounding to dominate.
+
+### When zod *would* be the right call
+
+- A project with 15+ endpoints sharing common fields.
+- Sharing schemas between frontend and backend (same schema validates the form client-side AND the request server-side).
+- Heavy use of test fixtures derived from schemas.
+
+None of those apply here.
+
+### What we kept from the exercise
+
+- The chat controller's manual validation pattern (writing it forced us to think about message shape, length bounds, role enums).
+- A clearer architectural picture: validation lives in the **controller layer** (HTTP shape) and the **service layer** (business rules). Zod could replace the controller layer; it couldn't replace the service layer. Knowing that the two are separable is valuable.
+- A real lesson about pre-evaluating tool choices: "more elegant in theory" isn't a substitute for measuring "shorter and clearer for *this* codebase."
+
+### Tradeoffs of staying manual
+
+- **More verbose** per endpoint.
+- **Type/runtime drift risk** — TypeScript types are maintained separately from the validation logic. If someone adds a field to the type but forgets the runtime check, the bug is silent until runtime.
+- **No reusable composable validators** — if password rules change, multiple places need updating.
+
+These are real costs we accept. The mitigation: validation rules are simple enough (and endpoint count small enough) that maintaining them manually is cheaper than introducing a library that didn't pay back its complexity cost in our case.
 
 ## Frontend
 
