@@ -8,6 +8,7 @@ import cors from 'cors';
 import http from 'http';
 import { Server as SocketServer } from 'socket.io';
 import { verifyToken } from './utils/jwt';
+import chatRoutes from './routes/chat.routes';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -17,6 +18,7 @@ app.use(cors({
     credentials: true,
 }));
 app.use(express.json());
+app.use('/api/v1/chat', chatRoutes);
 
 app.get('/health', (req: Request, res: Response) => {
     res.json({ status: 'ok' });
