@@ -84,7 +84,7 @@ function Transfer() {
                 </Typography>
 
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-                    Your balance: ${user?.balance ?? '0.00'}
+                    Your balance: ${Number(user?.balance ?? 0).toFixed(2)}
                 </Typography>
 
                 <Box

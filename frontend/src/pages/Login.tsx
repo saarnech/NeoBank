@@ -10,6 +10,7 @@ import {
 } from '@mui/material';
 import { loginUser } from '../api/auth';
 import { useAuth } from '../contexts/AuthContext';
+import AuthLayout from '../components/AuthLayout';
 
 function Login() {
     const navigate = useNavigate();
@@ -38,28 +39,18 @@ function Login() {
     }
 
     return (
-        <Box
-            sx={{
-                minHeight: '100vh',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                px: 2,
-            }}
-        >
-            <Typography variant="h5" sx={{ mb: 4 }}>
-                NeoBank
-            </Typography>
-
-            <Typography variant="h4" sx={{ mb: 4 }}>
+        <AuthLayout>
+            <Typography variant="h4" sx={{ mb: 1, fontWeight: 700 }}>
                 Welcome back
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+                Log in to your NeoBank account.
             </Typography>
 
             <Box
                 component="form"
                 onSubmit={handleSubmit}
-                sx={{ width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 2 }}
+                sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
             >
                 <TextField
                     label="Email"
@@ -95,7 +86,7 @@ function Login() {
                     <Link to="/register">Sign up</Link>
                 </Typography>
             </Box>
-        </Box>
+        </AuthLayout>
     );
 }
 

@@ -125,37 +125,83 @@ function Dashboard() {
                 )}
 
                 {/* Balance card */}
-                <Paper sx={{ p: 4, mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Paper
+                    sx={{
+                        p: 4,
+                        mb: 4,
+                        bgcolor: 'primary.main',
+                        color: 'primary.contrastText',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: 3,
+                        backgroundImage: 'linear-gradient(135deg, #1E293B 0%, #334155 100%)',
+                    }}
+                >
                     <Box>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        <Typography variant="body2" sx={{ opacity: 0.7, mb: 1, letterSpacing: '0.05em', textTransform: 'uppercase', fontSize: '0.75rem' }}>
                             Your balance
                         </Typography>
                         <Typography variant="h3" sx={{ mb: 1 }}>
-                            ${user?.balance ?? '0.00'}
+                            ${Number(user?.balance ?? 0).toFixed(2)}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" sx={{ opacity: 0.6 }}>
                             {user?.email}
                         </Typography>
                     </Box>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        <Button onClick={handleSendMoney} variant="contained" size="large">
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                        <Button
+                            onClick={handleSendMoney}
+                            variant="contained"
+                            size="large"
+                            color="secondary"
+                        >
                             Send money
                         </Button>
-                        <Button onClick={() => navigate('/call')} variant="outlined" size="large">
+                        <Button
+                            onClick={() => navigate('/call')}
+                            variant="outlined"
+                            size="large"
+                            sx={{
+                                color: 'white',
+                                borderColor: 'rgba(255,255,255,0.4)',
+                                '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.08)' },
+                            }}
+                        >
                             Video call
                         </Button>
                     </Box>
                 </Paper>
 
                 {/* Transactions */}
-                <Typography variant="h5" sx={{ mb: 2 }}>
+                <Typography variant="h5" sx={{ mb: 2, color: 'text.secondary' }}>
                     Recent transactions
                 </Typography>
 
                 {transactions.length === 0 ? (
-                    <Typography color="text.secondary">
-                        No transactions yet. Send some money to get started.
-                    </Typography>
+                    <Paper sx={{
+                        p: 2.5,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        boxShadow: 0,
+                        transition: 'all 0.15s ease',
+                        '&:hover': {
+                            transform: 'translateY(-1px)',
+                            boxShadow: 2,
+                            borderColor: 'transparent',
+                        },
+                    }}>
+                        <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
+                            No transactions yet
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Send some money to get started.
+                        </Typography>
+                    </Paper>
                 ) : (
                     <Stack spacing={1}>
                         {transactions.map((tx) => {
@@ -164,18 +210,50 @@ function Dashboard() {
                             const sign = isSender ? '-' : '+';
                             const dateLabel = new Date(tx.createdAt).toLocaleDateString();
                             return (
-                                <Paper key={tx.id} sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <Box sx={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                                        <Typography sx={{ minWidth: 100 }} color="text.secondary">
-                                            {isSender ? 'Sent to' : 'Received from'}
-                                        </Typography>
-                                        <Typography>{counterparty}</Typography>
+                                <Paper
+                                    key={tx.id}
+                                    sx={{
+                                        p: 2.5,
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        transition: 'all 0.15s ease',
+                                        '&:hover': {
+                                            transform: 'translateY(-1px)',
+                                            boxShadow: 2,
+                                        },
+                                    }}
+                                >
+                                    <Box sx={{ display: 'flex', gap: 2.5, alignItems: 'center' }}>
+                                        <Box
+                                            sx={{
+                                                width: 36,
+                                                height: 36,
+                                                borderRadius: '50%',
+                                                bgcolor: isSender ? 'error.light' : 'success.light',
+                                                color: 'white',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                fontWeight: 700,
+                                            }}
+                                        >
+                                            {isSender ? '↑' : '↓'}
+                                        </Box>
+                                        <Box>
+                                            <Typography variant="body2" color="text.secondary" sx={{ mb: 0.25 }}>
+                                                {isSender ? 'Sent to' : 'Received from'}
+                                            </Typography>
+                                            <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                                                {counterparty}
+                                            </Typography>
+                                        </Box>
                                     </Box>
-                                    <Box sx={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                                        <Typography color={isSender ? 'error.main' : 'success.main'}>
-                                            {sign}${tx.amount}
+                                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
+                                        <Typography variant="body1" sx={{ fontWeight: 700, color: isSender ? 'error.main' : 'success.main' }}>
+                                            {sign}${Number(tx.amount).toFixed(2)}
                                         </Typography>
-                                        <Typography color="text.secondary">{dateLabel}</Typography>
+                                        <Typography variant="caption" color="text.secondary">{dateLabel}</Typography>
                                     </Box>
                                 </Paper>
                             );

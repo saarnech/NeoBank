@@ -11,6 +11,7 @@ import {
 } from '@mui/material';
 import { verifyOtp, resendOtp } from '../api/auth';
 import { useAuth } from '../contexts/AuthContext';
+import AuthLayout from '../components/AuthLayout';
 
 function VerifyOtp() {
     const navigate = useNavigate();
@@ -67,32 +68,18 @@ function VerifyOtp() {
     }
 
     return (
-        <Box
-            sx={{
-                minHeight: '100vh',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                px: 2,
-            }}
-        >
-            <Typography variant="h5" sx={{ mb: 4 }}>
-                NeoBank
-            </Typography>
-
-            <Typography variant="h4" sx={{ mb: 2 }}>
+        <AuthLayout>
+            <Typography variant="h4" sx={{ mb: 1, fontWeight: 700 }}>
                 Verify your email
             </Typography>
-
-            <Typography variant="body1" sx={{ mb: 4, color: 'text.secondary', textAlign: 'center' }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
                 We sent a 6-digit code to <strong>{email}</strong>. Enter it below.
             </Typography>
 
             <Box
                 component="form"
                 onSubmit={handleSubmit}
-                sx={{ width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 2 }}
+                sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
             >
                 <TextField
                     label="Verification code"
@@ -129,7 +116,7 @@ function VerifyOtp() {
                     </MuiLink>
                 </Typography>
             </Box>
-        </Box>
+        </AuthLayout>
     );
 }
 
