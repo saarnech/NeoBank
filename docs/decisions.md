@@ -345,3 +345,76 @@ No write tools (no `initiateTransfer`, no `updateEmail`). Two reasons:
 - The "hallucination" problem from Phase 10 (LLM inventing balance numbers) is now structurally prevented for data the agent can fetch — it calls the tool and reports the real number.
 - The system prompt from Phase 10 (with NeoBank specifics) carried over and still works for non-tool-answerable questions (FAQ-style).
 - For interview talking points: closure-bound tool context, services-vs-routes tradeoff, why we picked the model we did.
+
+## Deployment
+
+The project was deployed to a free, multi-platform stack to produce a real public URL for portfolio and interview purposes.
+
+### Final architecture
+
+- **Frontend:** Vercel (Vite static build, automatic deploy on push to `main`).
+- **Backend:** Render (Docker-based deploy from the same repo, auto-redeploy on push).
+- **Database:** Neon (managed Postgres, free tier with no expiry).
+- **Email:** Brevo (HTTP API for transactional email).
+- **Chatbot/LLM:** Groq (unchanged from local; HTTP API, no platform-specific issues).
+
+Public URLs:
+- Frontend: https://neo-bank-omega.vercel.app
+- Backend: https://banks-backend-jsda.onrender.com
+
+### Platform selection
+
+The deployment story went through several pivots before reaching the final stack. The journey is worth recording because each pivot taught something real.
+
+**First considered:** Render all-in-one (backend + Postgres + frontend). Rejected when I learned Render's free Postgres expires after 30-90 days (sources varied), forcing either a $7/month upgrade or data loss. For a portfolio piece I want stable for months, that was the wrong shape.
+
+**Then considered:** DigitalOcean Droplet with the widely-advertised $200 / 60-day credit. This would have meant real Linux sysadmin work (SSH, systemd, Nginx, Let's Encrypt) — appealing as an interview talking point. I tried to sign up but the $200 credit no longer existed; the actual current credit is $5. The "$200" claim is still all over affiliate-style blog posts that I should have verified before committing to the path. Lesson: aggressively SEO'd offers can be aspirational rather than current — verify against the platform's own signup flow before planning around them.
+
+**Settled on:** Vercel (frontend) + Render (backend) + Neon (Postgres) + Brevo (email).
+- All free tiers. No recurring costs.
+- Vercel's frontend tier is genuinely production-grade and the standard place to host Vite/Next apps.
+- Render's free backend tier sleeps after 15 minutes of inactivity, with a 30-60 second cold start on first request. Accepted tradeoff for a demo; mentioned upfront when sharing the URL.
+- Neon's free tier doesn't expire and the connection string works with Prisma like any Postgres.
+
+For an interview talking point: "I picked free-tier hosting and accepted the cold-start tradeoff. For production, the upgrade path is Render's Starter tier ($7/month) or migration to always-on infrastructure once usage justifies it."
+
+### Database — Postgres 17, not 18
+
+When creating the Neon project, latest Postgres was 18. Prisma's official compatibility list at the time stopped at 17, with 18 reportedly working but undocumented. Picked 17 deliberately to avoid being the test case for an unverified combination. Lesson worth carrying: don't pick the bleeding-edge version unless you have a specific reason. Newer ≠ better when "older but documented" is on the table.
+
+### Environment variables — making the codebase deploy-ready
+
+Several values were hardcoded for local development and needed to become environment-configurable:
+
+- `CORS_ORIGIN` (backend) — in dev, allows `http://localhost:5173`; in prod, the Vercel URL.
+- `VITE_API_URL` (frontend) — in dev, defaults to `http://localhost:3000`; in prod, the Render URL.
+
+The pattern used everywhere: `process.env.X || 'safe-local-default'`. The `||` fallback means local dev keeps working without changing `.env` files. Production sets the env var explicitly. Clean separation.
+
+Same pattern applies to all the secrets (DATABASE_URL, JWT_SECRET, etc.).
+
+### Email — the most painful part
+
+The OTP flow uses email, and getting email working in production turned out to be the longest single piece of the deployment.
+
+**Tried first:** keep Nodemailer + Gmail SMTP as in development. Failed immediately: Render's free tier blocks all outbound SMTP traffic (ports 25, 465, 587) since September 2025. Documented in Render's own changelog. No code-level workaround possible. This is a real platform constraint that's easy to miss until you deploy.
+
+**Tried second:** Resend (HTTP-based email API, free tier). The HTTP API isn't blocked by Render, so the network path worked. But Resend's free tier without a verified domain has a strict restriction: you can only send emails to the verified account holder's own address. For a demo system where reviewers need to register their own email, this is a dealbreaker.
+
+**Settled on:** Brevo (formerly Sendinblue), HTTP API, free tier, 300 emails/month. Brevo lets you send from a single verified Gmail address to *any* recipient without domain verification. The free-tier deliverability isn't perfect (some emails land in spam) but the demo works.
+
+**SDK hiccup:** Brevo released a v5 SDK with a completely new API surface (`BrevoClient` with namespaced methods). Most online examples and the Brevo Node README itself still use v3 (`TransactionalEmailsApi`, `SendSmtpEmail`). When I installed `@getbrevo/brevo` without pinning, npm gave me v5; my code (written from v3 examples) didn't compile. Downgraded to `@getbrevo/brevo@^3.0.1` for stability. Lesson worth carrying: pin SDK major versions explicitly for code that needs to match documented examples.
+
+### What I learned that I didn't expect
+
+1. **Platform-specific limits aren't visible during development.** Render's SMTP block, Resend's "self-only" rule, free-tier sleep — none of these come up locally. Real deployment surfaces them quickly.
+2. **SEO content can be confidently wrong.** The $200 DigitalOcean credit, the `@langgraphjs/toolkit` package from Phase 11, were both confidently recommended by content that wasn't current. Skepticism of search results pays off.
+3. **CORS string matching is exact.** A trailing slash, missing scheme, or hidden whitespace breaks it. Browsers send the Origin header in a specific normalized form; your config has to match.
+4. **SPAs need explicit rewrite rules in production.** React Router works during development because Vite's dev server transparently serves `index.html` for any path. In production, Vercel needs a `vercel.json` rewrite to do the same. Classic SPA gotcha that only appears after deploy.
+
+### Open items deferred
+
+- Production transactions endpoint returns "Recipient email not found" even for users that exist in Neon. Likely a query / case-sensitivity issue, but the deployment itself works for everything else.
+- Tests + CI/CD were originally Phase 12-14 of the plan; deferred until after deployment per priority advice. Worth coming back to before the interview cycle ends.
+- Cold-start mitigation (e.g., uptime ping). Optional.
+- Custom domain (~$10/year). Optional polish.
