@@ -1,35 +1,37 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
-const EMAIL_USER = process.env.EMAIL_USER;
-const EMAIL_PASS = process.env.EMAIL_PASS;
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM;
 
-if (!EMAIL_USER || !EMAIL_PASS || !EMAIL_FROM) {
-    throw new Error('EMAIL_USER, EMAIL_PASS, and EMAIL_FROM must be set in environment');
+if (!RESEND_API_KEY || !EMAIL_FROM) {
+    throw new Error('RESEND_API_KEY and EMAIL_FROM must be set in environment');
 }
 
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: EMAIL_USER,
-        pass: EMAIL_PASS,
-    },
-});
+const resend = new Resend(RESEND_API_KEY);
+const from: string = EMAIL_FROM;
 
 export async function sendEmail(
     to: string,
     subject: string,
     text: string,
 ): Promise<void> {
-    await transporter.sendMail({
-        from: EMAIL_FROM,
+    const { error } = await resend.emails.send({
+        from,
         to,
         subject,
         text,
     });
+
+    if (error) {
+        throw new Error(`Failed to send email: ${error.message}`);
+    }
 }
 
 export async function verifyEmailConfig(): Promise<void> {
-    // Asks Gmail to confirm credentials work. Useful at startup.
-    await transporter.verify();
+    // Resend has no "verify credentials" endpoint analogous to SMTP's `verify`.
+    // We do a minimal sanity check: API key + from address are set.
+    // Real validation happens on first send.
+    if (!RESEND_API_KEY || !EMAIL_FROM) {
+        throw new Error('Email configuration missing');
+    }
 }
