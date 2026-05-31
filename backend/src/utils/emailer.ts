@@ -1,37 +1,41 @@
-import { Resend } from 'resend';
+import * as brevo from '@getbrevo/brevo';
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM;
+const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || 'NeoBank';
 
-if (!RESEND_API_KEY || !EMAIL_FROM) {
-    throw new Error('RESEND_API_KEY and EMAIL_FROM must be set in environment');
+if (!BREVO_API_KEY || !EMAIL_FROM) {
+    throw new Error('BREVO_API_KEY and EMAIL_FROM must be set in environment');
 }
 
-const resend = new Resend(RESEND_API_KEY);
 const from: string = EMAIL_FROM;
+const apiKey: string = BREVO_API_KEY;
+
+const apiInstance = new brevo.TransactionalEmailsApi();
+// The SDK's TypeScript types don't quite match its runtime shape — `as any` documented in Brevo's own README.
+(apiInstance as any).authentications.apiKey.apiKey = apiKey;
 
 export async function sendEmail(
     to: string,
     subject: string,
     text: string,
 ): Promise<void> {
-    const { error } = await resend.emails.send({
-        from,
-        to,
-        subject,
-        text,
-    });
+    const message = new brevo.SendSmtpEmail();
+    message.sender = { name: EMAIL_FROM_NAME, email: from };
+    message.to = [{ email: to }];
+    message.subject = subject;
+    message.textContent = text;
 
-    if (error) {
-        throw new Error(`Failed to send email: ${error.message}`);
+    try {
+        await apiInstance.sendTransacEmail(message);
+    } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        throw new Error(`Failed to send email: ${errorMessage}`);
     }
 }
 
 export async function verifyEmailConfig(): Promise<void> {
-    // Resend has no "verify credentials" endpoint analogous to SMTP's `verify`.
-    // We do a minimal sanity check: API key + from address are set.
-    // Real validation happens on first send.
-    if (!RESEND_API_KEY || !EMAIL_FROM) {
+    if (!BREVO_API_KEY || !EMAIL_FROM) {
         throw new Error('Email configuration missing');
     }
 }
