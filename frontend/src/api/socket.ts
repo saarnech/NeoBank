@@ -7,7 +7,7 @@ export function connectSocket(token: string): Socket {
         return socket;  // already exists (connected or connecting), reuse
     }
 
-    const newSocket = io('http://localhost:3000', {
+    const newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:3000', {
         auth: { token },
         autoConnect: true,
     });
