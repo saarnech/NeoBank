@@ -83,6 +83,16 @@ function generateOtp(): string {
     return n.toString().padStart(6, '0');
 }
 
+function otpEmailBody(code: string): string {
+    return `Hello,
+
+Your verification code is: ${code}
+
+This code expires in 10 minutes. If you didn't request this, you can ignore this email.
+
+— Banks`;
+}
+
 // --- Public service functions ---
 
 export async function registerUser(input: RegisterRequest): Promise<RegisterResponse> {
@@ -97,7 +107,31 @@ export async function registerUser(input: RegisterRequest): Promise<RegisterResp
 
     const existing = await findByEmail(email);
     if (existing) {
-        throw new EmailAlreadyExistsError(existing.email);
+        // An ACTIVE account is a genuine conflict — the email is taken.
+        if (existing.status === 'active') {
+            throw new EmailAlreadyExistsError(existing.email);
+        }
+
+        // INACTIVE: a prior signup that never verified. Self-heal instead of
+        // blocking — refresh credentials, issue a fresh OTP, and let whoever
+        // controls the inbox take ownership. Unsticks abandoned signups and
+        // closes the squatting hole (the OTP only ever reaches the real owner).
+        existing.passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+        existing.phone = phone;
+        await save(existing);
+
+        const refreshedOtp = generateOtp();
+        await setOtp(existing.email, refreshedOtp);
+        await sendEmail(existing.email, 'Your Banks verification code', otpEmailBody(refreshedOtp));
+
+        if (process.env.NODE_ENV !== 'production') {
+            console.log(`[OTP] Re-issued code for ${existing.email}: ${refreshedOtp}`);
+        }
+
+        return {
+            message: 'Registration refreshed. A new OTP has been sent.',
+            userId: existing.id,
+        };
     }
 
     const newUser: StoredUser = {
@@ -116,17 +150,7 @@ export async function registerUser(input: RegisterRequest): Promise<RegisterResp
     await setOtp(newUser.email, otpCode);
 
     // Send via email
-    await sendEmail(
-        newUser.email,
-        'Your Banks verification code',
-        `Hello,
-
-Your verification code is: ${otpCode}
-
-This code expires in 10 minutes. If you didn't request this, you can ignore this email.
-
-— Banks`,
-    );
+    await sendEmail(newUser.email, 'Your Banks verification code', otpEmailBody(otpCode));
 
 // Dev convenience: log to console so we don't have to check inbox during testing
     if (process.env.NODE_ENV !== 'production') {
@@ -222,17 +246,8 @@ export async function resendOtp(email: string): Promise<void> {
     const otpCode = generateOtp();
     await setOtp(user.email, otpCode);
 
-    await sendEmail(
-        user.email,
-        'Your Banks verification code',
-        `Hello,
-
-Your verification code is: ${otpCode}
-
-This code expires in 10 minutes. If you didn't request this, you can ignore this email.
-
-— Banks`,
-    );
+    // in resendOtp (same):
+    await sendEmail(user.email, 'Your Banks verification code', otpEmailBody(otpCode));
 
     if (process.env.NODE_ENV !== 'production') {
         console.log(`[OTP] Resent code for ${user.email}: ${otpCode}`);

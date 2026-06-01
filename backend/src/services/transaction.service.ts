@@ -103,7 +103,10 @@ export async function createTransaction(
             where: { email: recipientEmail.toLowerCase() },
         });
 
-        if (!recipient) {
+        if (!recipient || recipient.status !== 'ACTIVE') {
+            if (process.env.NODE_ENV !== 'production') {
+                console.warn(`Transfer rejected for ${recipientEmail}: ${!recipient ? 'no account' : 'inactive'}`);
+            }
             throw new RecipientNotFoundError();
         }
 

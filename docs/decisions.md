@@ -412,9 +412,61 @@ The OTP flow uses email, and getting email working in production turned out to b
 3. **CORS string matching is exact.** A trailing slash, missing scheme, or hidden whitespace breaks it. Browsers send the Origin header in a specific normalized form; your config has to match.
 4. **SPAs need explicit rewrite rules in production.** React Router works during development because Vite's dev server transparently serves `index.html` for any path. In production, Vercel needs a `vercel.json` rewrite to do the same. Classic SPA gotcha that only appears after deploy.
 
-### Open items deferred
+### Transactions "Recipient email not found" — it was data, not a bug
 
-- Production transactions endpoint returns "Recipient email not found" even for users that exist in Neon. Likely a query / case-sensitivity issue, but the deployment itself works for everything else.
-- Tests + CI/CD were originally Phase 12-14 of the plan; deferred until after deployment per priority advice. Worth coming back to before the interview cycle ends.
-- Cold-start mitigation (e.g., uptime ping). Optional.
-- Custom domain (~$10/year). Optional polish.
+The deferred open item was a false alarm. Email handling is case-normalized end
+to end (`findByEmail`, `save`, the OTP store, and the transfer's recipient lookup
+all `.toLowerCase()`), so there was never a casing bug. The real cause: I was
+testing against recipient emails that existed in my **local** database but had
+never been registered on the **production** Neon instance. Post-deploy accounts
+transact with each other fine. Lesson worth carrying: when "not found" only
+happens in one environment, suspect the data before the query.
+
+### Self-healing registration for unverified accounts
+
+After deploy: register threw `EmailAlreadyExistsError` for *any* existing row,
+INACTIVE ones included. A user who signed up, never entered their OTP, and came
+back later was stuck — couldn't re-register ("taken") and couldn't log in
+("not activated"), with no path back to verification.
+
+- **A — keep unverified rows forever + a dedicated resume screen.** Rejected:
+  permanently locks the email and opens an account-squatting vector.
+- **B — scheduled job to purge unverified rows.** Rejected as the primary fix:
+  needs a scheduler, and pg_cron is a poor fit on Neon (below).
+- **C — self-heal on re-registration (chosen).** If the existing row is INACTIVE,
+  register refreshes its credentials, issues a fresh OTP, and returns success.
+  Whoever controls the inbox verifies and takes ownership.
+
+C wins: it unsticks abandoned signups with zero new infrastructure, and it
+*closes* the squatting hole rather than widening it — the fresh OTP only reaches
+the real owner. Emergent property: the resume path is just "register again," so
+the existing register → OTP-entry flow handles it with no new screen.
+
+### Transfers only move ACTIVE → ACTIVE
+
+An INACTIVE account had received money (non-zero balance despite never verifying).
+That's a ledger-integrity problem: an unverified email has no confirmed owner, and
+any future cleanup of that row would vaporize a real balance. Added a guard in
+`createTransaction` (inside the DB transaction) rejecting transfers to non-ACTIVE
+recipients. Fixing the invariant, not the symptom — "money in an unverified
+account" is now unreachable.
+
+**On the error message — deliberately vague.** First pass used a distinct
+`RecipientInactiveError`. Dropped it: an inactive recipient now returns the same
+"Recipient email not found" as a missing one. The reason is anti-enumeration —
+the same principle as login returning a generic "Invalid email or password."
+Distinct errors would let any authenticated user probe which emails have accounts
+and which are pending-vs-verified. The honest sender loses a little precision; the
+system stops leaking who banks here. The real reason is still logged server-side
+(dev only), so observability isn't lost. Worth carrying: client messages reveal
+the minimum, logs hold the detail.
+
+### Why no scheduled cleanup (and why that's fine)
+
+Unverified rows can still accumulate, so the instinct is a cron sweep. But pg_cron
+on Neon only runs while the compute is active, and the free tier scales to zero
+when idle — exactly when a sweep would want to run. Unreliable here without
+disabling scale-to-zero, which defeats the cost savings. Decision: rely on
+self-healing (C) for the user-facing problem and defer any hygiene sweep. If ever
+needed on this stack, the right tool is a Render cron job hitting a cleanup
+endpoint, not pg_cron. At portfolio scale the accumulation is negligible.
