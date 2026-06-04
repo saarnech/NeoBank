@@ -85,8 +85,6 @@ npm run dev              # → http://localhost:5173
 
 Deployed and functional end-to-end: registration, OTP verification, login, transfers, real-time notifications, the AI assistant, and video calling all work in production.
 
-**Planned / not yet implemented:** automated tests (Jest + Supertest for the backend, Cypress for E2E) and a CI/CD pipeline were scoped as later phases and are not in the repo yet.
-
 ## Author
 
 Saar Nechemia
